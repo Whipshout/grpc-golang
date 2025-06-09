@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+option go_package = "github.com/whipshout/grpc/helpers/proto";
+
+message ComplexName {
+  string name = 1;
+}
+
+message Split {
+  string name = 1;
+  ComplexName complex_name = 2;
+}

@@ -1,12 +1,8 @@
-go 1.24.3
+go 1.24.4
 
 use (
 	./client
 	./proto
 	./server
+	./helpers
 )
-
-
-//protoc --go_out=. --go_opt=module=github.com/whipshout/grpc --go_grpc_out=. --go_grpc_opt=module=github.com/whipshout/grpc proto/dummy/v1/dummy.proto
-//
-//protoc --go_out=. --go_opt=module=github.com/PacktPublishing/gRPC-Go-for-Professionals --go-grpc_out=. --go-grpc_opt=module=github.com/PacktPublishing/gRPC-Go-for-Professionals proto/dummy/v1/dummy.proto

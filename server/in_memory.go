@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	pb "github.com/whipshout/grpc/proto/todo/v1"
+	pb "github.com/whipshout/grpc/proto/todo/v2"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 )

@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	pb "github.com/whipshout/grpc/proto/todo/v1"
+	pb "github.com/whipshout/grpc/proto/todo/v2"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"log"
@@ -22,8 +26,17 @@ func main() {
 
 	addr := args[0]
 
+	creds, err := credentials.NewClientTLSFromFile("./certs/ca_cert.pem", "x.test.example.com")
+	if err != nil {
+		log.Fatalf("failed to create TLS credentials %v", err)
+	}
+
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds),
+		grpc.WithUnaryInterceptor(unaryAuthInterceptor),
+		grpc.WithStreamInterceptor(streamAuthInterceptor),
+		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig":[{"round_robin":{}}]}`),
 	}
 
 	conn, err := grpc.NewClient(addr, opts...)
@@ -33,6 +46,11 @@ func main() {
 
 	c := pb.NewTodoServiceClient(conn)
 
+	fm, err := fieldmaskpb.New(&pb.Task{}, "id")
+	if err != nil {
+		log.Fatalf("unexpected error: %v\n", err)
+	}
+
 	fmt.Println("------ADD------")
 	dueDate := time.Now().Add(5 * time.Second)
 	id1 := addTask(c, "This is a task", dueDate)
@@ -41,16 +59,16 @@ func main() {
 	fmt.Println("---------------")
 
 	fmt.Println("------LIST-----")
-	printTasks(c)
+	printTasks(c, nil)
 	fmt.Println("---------------")
 
 	fmt.Println("-----UPDATE----")
 	updateTasks(c, []*pb.UpdateTasksRequest{
-		{Task: &pb.Task{Id: id1, Description: "A better name for the task"}},
-		{Task: &pb.Task{Id: id2, DueDate: timestamppb.New(dueDate.Add(5 * time.Hour))}},
-		{Task: &pb.Task{Id: id3, Done: true}},
+		{Id: id1, Description: "A better name for the task"},
+		{Id: id2, DueDate: timestamppb.New(dueDate.Add(5 * time.Hour))},
+		{Id: id3, Done: true},
 	}...)
-	printTasks(c)
+	printTasks(c, nil)
 	fmt.Println("---------------")
 
 	fmt.Println("-----DELETE----")
@@ -59,7 +77,7 @@ func main() {
 		{Id: id2},
 		{Id: id3},
 	}...)
-	printTasks(c)
+	printTasks(c, nil)
 	fmt.Println("---------------")
 
 	defer func(conn *grpc.ClientConn) {
@@ -75,9 +93,20 @@ func addTask(c pb.TodoServiceClient, description string, dueDate time.Time) uint
 		DueDate:     timestamppb.New(dueDate),
 	}
 
+	// For individual method compression, add after req `, grpc.UseCompressor(gzip.Name))`
 	res, err := c.AddTask(context.Background(), req)
 	if err != nil {
-		panic(err)
+		if s, ok := status.FromError(err); ok {
+			switch s.Code() {
+			case codes.InvalidArgument, codes.Internal:
+				log.Fatalf("%s: %s", s.Code(), s.Message())
+
+			default:
+				log.Fatal(s)
+			}
+		} else {
+			panic(err)
+		}
 	}
 
 	fmt.Printf("added task: %d\n", res.Id)
@@ -85,10 +114,15 @@ func addTask(c pb.TodoServiceClient, description string, dueDate time.Time) uint
 	return res.Id
 }
 
-func printTasks(c pb.TodoServiceClient) {
-	req := &pb.ListTasksRequest{}
+func printTasks(c pb.TodoServiceClient, fm *fieldmaskpb.FieldMask) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 
-	stream, err := c.ListTasks(context.Background(), req)
+	req := &pb.ListTasksRequest{
+		Mask: fm,
+	}
+
+	stream, err := c.ListTasks(ctx, req)
 	if err != nil {
 		log.Fatalf("unexpected error : %v", err)
 	}
@@ -100,6 +134,11 @@ func printTasks(c pb.TodoServiceClient) {
 		}
 		if err != nil {
 			log.Fatalf("unexpected error : %v", err)
+		}
+
+		if res.Overdue {
+			log.Printf("CANCEL called")
+			cancel()
 		}
 
 		fmt.Println(res.Task.String(), "overdue: ", res.Overdue)
@@ -118,8 +157,8 @@ func updateTasks(c pb.TodoServiceClient, reqs ...*pb.UpdateTasksRequest) {
 			log.Fatalf("unexpected error : %v", err)
 		}
 
-		if req.Task != nil {
-			fmt.Printf("updated task with id: %d\n", req.Task.Id)
+		if req != nil {
+			fmt.Printf("updated task with id: %d\n", req.Id)
 		}
 	}
 

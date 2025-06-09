@@ -1,7 +1,7 @@
 package main
 
 import (
-	pb "github.com/whipshout/grpc/proto/todo/v1"
+	pb "github.com/whipshout/grpc/proto/todo/v2"
 )
 
 type server struct {

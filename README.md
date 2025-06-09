@@ -12,10 +12,37 @@
 
 `brew install bufbuild/buf/buf`
 
+<br>
+
+`brew install docker`
+
+<br>
+
+`go install sigs.k8s.io/kind@v0.29.0`
+
+<br>
+
 # Compile protobuf using Buf:
 <br>
 
 `buf generate`
+
+<br>
+
+# Run k8s with Kind
+<br>
+
+`kind create cluster --config k8s/kind.yaml`
+
+<br>
+
+`kubectl apply -f k8s/server.yaml`
+
+<br>
+
+`kubectl apply -f k8s/client.yaml`
+
+<br>
 
 # Run project
 <br>

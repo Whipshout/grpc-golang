@@ -1,8 +1,9 @@
 module github.com/whipshout/grpc/server
 
-go 1.24.3
+go 1.24.4
 
 require (
+	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
